@@ -12,8 +12,11 @@ std::vector<int> filaCasal;
 pthread_cond_t sinal;
 pthread_mutex_t forno;
 pthread_mutex_t fila;
+bool raj;
+int rajSelect;
+int rajLimit;
 
-float get_random() {
+float GetRandom() {
     static std::default_random_engine e;
     static std::uniform_real_distribution<> dis(0,1);
     return dis(e);
@@ -73,7 +76,6 @@ bool TemDeadlock() {
 
 int ProximoDaFila() {
     if(TemDeadlock()) {
-        printf("Deadlock detectado\n");
         return 0;
     }
     // Primeiro vê na fila de casal
@@ -128,8 +130,18 @@ void ChamarProximo() {
     pthread_cond_broadcast(&sinal);
 }
 
+void ResetRaj() {
+    raj = false;
+    rajSelect = 0;
+}
+
 void Esquentar(Personagem *p) {
     while(p->id != ProximoDaFila()) {
+        // Verificar seleção do raj caso haja deadlock
+        if(raj && rajSelect == p->id) {
+            ResetRaj();
+            break;
+        }
         pthread_cond_wait(&sinal, &forno);
     }
     printf("%s começa a esquentar algo\n", p->Nome().c_str());
@@ -137,7 +149,7 @@ void Esquentar(Personagem *p) {
 }
 
 void Comer() {
-    float tempo = 3 + get_random() * (6 - 3);
+    float tempo = 3 + GetRandom() * (6 - 3);
     sleep(tempo);
 }
 
@@ -159,6 +171,39 @@ void* ThreadPersonagem(void *arg) {
         p->vezes--;
     }
 
+    rajLimit++;
+    pthread_exit(EXIT_SUCCESS);
+}
+
+int GetRandomAtDeadlock() {
+    std::vector<int> temp = (filaCasal.empty()) ? filaForno : filaCasal;
+    // Remove Stuart e Kripke das seleções de deadlock
+    temp.erase(std::remove(temp.begin(), temp.end(), -1), temp.end());
+    temp.erase(std::remove(temp.begin(), temp.end(), -2), temp.end());
+
+    static std::default_random_engine e;
+    static std::uniform_int_distribution<int> dis(0, temp.size());
+    int sample = temp[dis(e)];
+    printf("Raj selected %d\n", sample);
+    return sample;
+}
+
+void *ThreadRaj(void *arg) {
+    int *count = (int *)arg;
+    // Raj não para até que todos os outros indiquem a ele que pararam
+    while(rajLimit < *count) {
+        sleep(5);
+        // Resolver deadlock
+        if(!raj && TemDeadlock()) {
+            // Ativa a seleção do raj para ser desligada após a seleção
+            raj = true;
+            // Escolhe um aleatório
+            rajSelect = GetRandomAtDeadlock();
+            // Manda signal broadcast
+            pthread_cond_broadcast(&sinal);
+        }
+    }
+
     pthread_exit(EXIT_SUCCESS);
 }
 
@@ -167,9 +212,13 @@ int main() {
     int numPersonagens = 6;
     std::vector<Personagem*> personagens;
     pthread_t threads[numPersonagens];
+    pthread_t rajThread;
     pthread_mutex_init(&forno, NULL);
     pthread_mutex_init(&fila, NULL);
     pthread_cond_init(&sinal, NULL);
+    raj = false;
+    rajLimit = 0;
+
     // Inicializando personagens
     for(int i = 0; i < numPersonagens; i++) {
         Personagem *p = new Personagem(i + 1);
@@ -179,10 +228,12 @@ int main() {
     for(int i = 0; i < numPersonagens; i++) {
         pthread_create(&threads[i], NULL, ThreadPersonagem, personagens[i]);
     }
+    pthread_create(&rajThread, NULL, ThreadRaj, &numPersonagens);
     // Esperando threads acabarem
     for(int i = 0; i < numPersonagens; i++) {
         pthread_join(threads[i], NULL);
     }
+    pthread_join(rajThread, NULL);
 
     // Deleta personagens no final
     for(auto it = personagens.begin(); it != personagens.end(); ++it) {
