@@ -9,3 +9,5 @@ class Personagem {
     Personagem(int pId);
     std::string Nome();
 };
+
+std::string Nome(int pId);

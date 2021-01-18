@@ -5,7 +5,8 @@
 #include "personagem.h"
 #include <unistd.h>
 #include <algorithm>
-#include <random>
+#include <map>
+#include <time.h>
 
 std::vector<int> filaForno;
 std::vector<int> filaCasal;
@@ -15,12 +16,6 @@ pthread_mutex_t fila;
 bool raj;
 int rajSelect;
 int rajLimit;
-
-float GetRandom() {
-    static std::default_random_engine e;
-    static std::uniform_real_distribution<> dis(0,1);
-    return dis(e);
-}
 
 void ImprimirFila() {
     printf("Fila Casal: ");
@@ -55,16 +50,21 @@ int Casal(int p) {
 }
 
 int Prioridade(int p1, int p2) {
-    int modP1 = (p1 % 4) + 1;
-    int modP2 = (p2 % 4) + 1;
-    // Membros do mesmo casal (ordem da chamada importa)
-    if(modP1 == modP2) return p1;
+    std::map<int,int> map;
+    map[p1] = (p1 > 3) ? p1 - 3 : p1;
+    map[p2] = (p2 > 3) ? p2 - 3 : p2;
+    // Mesmo casal (ordem da chamada importa)
+    if(map[p1] == map[p2]) return p1;
     // Caso comum
     else {
-        int max = std::max(modP1, modP2);
-        int min = std::min(modP1, modP2);
-        if(max == 3 && min == 1) return min;
-        else return max;
+        int max = std::max(map[p1], map[p2]);
+        int min = std::min(map[p1], map[p2]);
+        if(max == 3 && min == 1) {
+            return (min == map[p1]) ? p1 : p2;
+        }
+        else {
+            return (max == map[p1]) ? p1 : p2;
+        }
     }
 }
 
@@ -113,7 +113,7 @@ void Enfileirar(Personagem *p) {
         filaForno.push_back(p->id);
     }
     printf("%s quer usar o forno\n", p->Nome().c_str());
-    ImprimirFila();
+    //ImprimirFila();
     pthread_mutex_unlock(&fila);
 }
 
@@ -121,12 +121,11 @@ void Desenfileirar(Personagem *p) {
     pthread_mutex_lock(&fila);
     RemoverDaFila(p->id);
     printf("%s vai comer\n", p->Nome().c_str());
-    ImprimirFila();
+    //ImprimirFila();
     pthread_mutex_unlock(&fila);
 }
 
 void ChamarProximo() {
-    printf("Chamando próximo da fila\n");
     pthread_cond_broadcast(&sinal);
 }
 
@@ -149,7 +148,17 @@ void Esquentar(Personagem *p) {
 }
 
 void Comer() {
-    float tempo = 3 + GetRandom() * (6 - 3);
+    // Come por tempo aleatório entre 3 e 6 segundos
+    float tempo = (float) rand() / (float) (RAND_MAX / 1);
+    tempo = 3 + tempo * (6 - 3);
+    sleep(tempo);
+}
+
+void Trabalhar(Personagem *p) {
+    printf("%s voltou para o trabalho\n", p->Nome().c_str());
+    /*float tempo = (float) rand() / (float) (RAND_MAX / 1);
+    tempo = 3 + tempo * (6 - 3);*/
+    float tempo = 5;
     sleep(tempo);
 }
 
@@ -165,9 +174,10 @@ void* ThreadPersonagem(void *arg) {
         // Termina e sai da fila para comer
         Desenfileirar(p);
         pthread_mutex_unlock(&forno);
-        // Chama o próximo antes de comer
+        // Chama o próximo antes de comer e trabalhar
         ChamarProximo();
         Comer();
+        Trabalhar(p);
         p->vezes--;
     }
 
@@ -181,10 +191,9 @@ int GetRandomAtDeadlock() {
     temp.erase(std::remove(temp.begin(), temp.end(), -1), temp.end());
     temp.erase(std::remove(temp.begin(), temp.end(), -2), temp.end());
 
-    static std::default_random_engine e;
-    static std::uniform_int_distribution<int> dis(0, temp.size());
-    int sample = temp[dis(e)];
-    printf("Raj selected %d\n", sample);
+    // Seleciona índice aleatório entre 0 e temp.size
+    int sample = temp[rand() / (RAND_MAX / temp.size() + 1)];
+    printf("Raj detectou um deadlock, liberando %s\n", Nome(sample).c_str());
     return sample;
 }
 
@@ -209,9 +218,10 @@ void *ThreadRaj(void *arg) {
 
 int main() {
 
+    srand(time(NULL));
     int numPersonagens = 6;
     std::vector<Personagem*> personagens;
-    pthread_t threads[numPersonagens];
+    pthread_t threads[numPersonagens + 2];
     pthread_t rajThread;
     pthread_mutex_init(&forno, NULL);
     pthread_mutex_init(&fila, NULL);
@@ -224,15 +234,25 @@ int main() {
         Personagem *p = new Personagem(i + 1);
         personagens.push_back(p);
     }
+    Personagem *stuart = new Personagem(-1);
+    Personagem *kripke = new Personagem(-2);
+    personagens.push_back(stuart);
+    personagens.push_back(kripke);
+    
     // Iniciando threads
     for(int i = 0; i < numPersonagens; i++) {
         pthread_create(&threads[i], NULL, ThreadPersonagem, personagens[i]);
     }
+    pthread_create(&threads[numPersonagens], NULL, ThreadPersonagem, stuart);
+    pthread_create(&threads[numPersonagens + 1], NULL, ThreadPersonagem, kripke);
     pthread_create(&rajThread, NULL, ThreadRaj, &numPersonagens);
+
     // Esperando threads acabarem
     for(int i = 0; i < numPersonagens; i++) {
         pthread_join(threads[i], NULL);
     }
+    pthread_join(threads[numPersonagens], NULL);
+    pthread_join(threads[numPersonagens + 1], NULL);
     pthread_join(rajThread, NULL);
 
     // Deleta personagens no final
