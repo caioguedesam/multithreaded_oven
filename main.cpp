@@ -153,15 +153,14 @@ void Comer(Personagem *p) {
     // Come por tempo aleatório entre 3 e 6 segundos
     printf("%s vai comer\n", p->Nome().c_str());
     float tempo = (float) rand() / (float) (RAND_MAX / 1);
-    tempo = 3 + tempo * (6 - 3);
+    tempo = 1 + tempo * (6 - 1);
     sleep(tempo);
 }
 
 void Trabalhar(Personagem *p) {
     printf("%s voltou para o trabalho\n", p->Nome().c_str());
-    /*float tempo = (float) rand() / (float) (RAND_MAX / 1);
-    tempo = 3 + tempo * (6 - 3);*/
-    float tempo = 5;
+    float tempo = (float) rand() / (float) (RAND_MAX / 1);
+    tempo = 1 + tempo * (6 - 1);
     sleep(tempo);
 }
 
