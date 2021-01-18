@@ -10,6 +10,9 @@ std::string Personagem::Nome() {
         case 1: return std::string("Leonard");
         case 2: return std::string("Howard");
         case 3: return std::string("Sheldon");
+        case 4: return std::string("Penny");
+        case 5: return std::string("Bernadette");
+        case 6: return std::string("Amy");
         case -1: return std::string("Stuart");
         case -2: return std::string("Kripke");
         default: return std::string("");

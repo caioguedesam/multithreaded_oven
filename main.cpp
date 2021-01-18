@@ -8,6 +8,7 @@
 #include <random>
 
 std::vector<int> filaForno;
+std::vector<int> filaCasal;
 pthread_cond_t sinal;
 pthread_mutex_t forno;
 pthread_mutex_t fila;
@@ -19,25 +20,55 @@ float get_random() {
 }
 
 void ImprimirFila() {
-    printf("Fila: ");
+    printf("Fila Casal: ");
+    for(auto it = filaCasal.begin(); it != filaCasal.end(); it++) {
+        printf("%d ", *it);
+    }
+    printf("\n");
+    printf("Fila Solteiro: ");
     for(auto it = filaForno.begin(); it != filaForno.end(); it++) {
         printf("%d ", *it);
     }
     printf("\n");
 }
 
+bool NaFila(int p) {
+    return (std::find(filaForno.begin(), filaForno.end(), p) != filaForno.end());
+}
+
+bool NaFilaCasal(int p) {
+    return (std::find(filaCasal.begin(), filaCasal.end(), p) != filaCasal.end());
+}
+
+void RemoverDaFila(int p) {
+    filaForno.erase(std::remove(filaForno.begin(), filaForno.end(), p), filaForno.end());
+    filaCasal.erase(std::remove(filaCasal.begin(), filaCasal.end(), p), filaCasal.end());
+}
+
+int Casal(int p) {
+    if(p < 0) return 0;
+    else if(p <= 3) return p + 3;
+    else return p - 3;
+}
+
 int Prioridade(int p1, int p2) {
-    int max = std::max(p1, p2);
-    int min = std::min(p1, p2);
-    if(max == 3 && min == 1) return min;
-    else return max;
+    int modP1 = (p1 % 4) + 1;
+    int modP2 = (p2 % 4) + 1;
+    // Membros do mesmo casal (ordem da chamada importa)
+    if(modP1 == modP2) return p1;
+    // Caso comum
+    else {
+        int max = std::max(modP1, modP2);
+        int min = std::min(modP1, modP2);
+        if(max == 3 && min == 1) return min;
+        else return max;
+    }
 }
 
 bool TemDeadlock() {
-    bool p1 = (std::find(filaForno.begin(), filaForno.end(), 1) != filaForno.end());
-    bool p2 = (std::find(filaForno.begin(), filaForno.end(), 2) != filaForno.end());
-    bool p3 = (std::find(filaForno.begin(), filaForno.end(), 3) != filaForno.end());
-    return p1 && p2 && p3;
+    bool naFila = (NaFila(1) || NaFila(4)) && (NaFila(2) || NaFila(5)) && (NaFila(3) || NaFila(6));
+    bool naFilaCasal = (NaFilaCasal(1) || NaFilaCasal(4)) && (NaFilaCasal(2) || NaFilaCasal(5)) && (NaFilaCasal(3) || NaFilaCasal(6));
+    return naFila || naFilaCasal;
 }
 
 int ProximoDaFila() {
@@ -45,19 +76,40 @@ int ProximoDaFila() {
         printf("Deadlock detectado\n");
         return 0;
     }
-    // TODO: Casais
-    if(filaForno.empty()) return 0;
-    int first = filaForno[0];
-    for(auto it = filaForno.begin() + 1; it != filaForno.end(); it++) {
-        if(Prioridade(*it, first) == *it)
-            first = *it;
+    // Primeiro vê na fila de casal
+    if(!filaCasal.empty()) {
+        int first = filaCasal[0];
+        for(auto it = filaCasal.begin() + 1; it != filaCasal.end(); it++) {
+            if(Prioridade(first, *it) == *it)
+                first = *it;
+        }
+        return first;
     }
-    return first;
+    // Ninguém na fila de casal
+    else {
+        if(filaForno.empty()) return 0;
+        int first = filaForno[0];
+        for(auto it = filaForno.begin() + 1; it != filaForno.end(); it++) {
+            if(Prioridade(*it, first) == *it)
+                first = *it;
+        }
+        return first;
+    }
 }
 
 void Enfileirar(Personagem *p) {
     pthread_mutex_lock(&fila);
-    filaForno.push_back(p->id);
+    int pCasal = Casal(p->id);
+    // Se encontra o casal, move ambos para a fila de casais
+    if(pCasal != 0 && (NaFila(pCasal) || NaFilaCasal(pCasal))) {
+        RemoverDaFila(pCasal);
+        filaCasal.push_back(pCasal);
+        filaCasal.push_back(p->id);
+    }
+    // Se não, coloca na fila normal de baixa prioridade
+    else {
+        filaForno.push_back(p->id);
+    }
     printf("%s quer usar o forno\n", p->Nome().c_str());
     ImprimirFila();
     pthread_mutex_unlock(&fila);
@@ -65,7 +117,7 @@ void Enfileirar(Personagem *p) {
 
 void Desenfileirar(Personagem *p) {
     pthread_mutex_lock(&fila);
-    filaForno.erase(std::remove(filaForno.begin(), filaForno.end(), p->id), filaForno.end());
+    RemoverDaFila(p->id);
     printf("%s vai comer\n", p->Nome().c_str());
     ImprimirFila();
     pthread_mutex_unlock(&fila);
@@ -112,7 +164,7 @@ void* ThreadPersonagem(void *arg) {
 
 int main() {
 
-    int numPersonagens = 3;
+    int numPersonagens = 6;
     std::vector<Personagem*> personagens;
     pthread_t threads[numPersonagens];
     pthread_mutex_init(&forno, NULL);
