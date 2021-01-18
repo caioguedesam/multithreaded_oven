@@ -120,7 +120,7 @@ void Enfileirar(Personagem *p) {
 void Desenfileirar(Personagem *p) {
     pthread_mutex_lock(&fila);
     RemoverDaFila(p->id);
-    printf("%s vai comer\n", p->Nome().c_str());
+    printf("%s começa a esquentar algo\n", p->Nome().c_str());
     //ImprimirFila();
     pthread_mutex_unlock(&fila);
 }
@@ -143,12 +143,15 @@ void Esquentar(Personagem *p) {
         }
         pthread_cond_wait(&sinal, &forno);
     }
-    printf("%s começa a esquentar algo\n", p->Nome().c_str());
+    // Desenfileira antes de começar a esquentar (o primeiro sai da fila)
+    Desenfileirar(p);
+    // Esquenta
     sleep(1);
 }
 
-void Comer() {
+void Comer(Personagem *p) {
     // Come por tempo aleatório entre 3 e 6 segundos
+    printf("%s vai comer\n", p->Nome().c_str());
     float tempo = (float) rand() / (float) (RAND_MAX / 1);
     tempo = 3 + tempo * (6 - 3);
     sleep(tempo);
@@ -168,15 +171,15 @@ void* ThreadPersonagem(void *arg) {
     while(p->vezes > 0) {
         // Entra na fila
         Enfileirar(p);
-        // Tenta esquentar sua comida
+        // Tenta esquentar sua comida. Caso consiga, sai da fila e começa a esquentar
         pthread_mutex_lock(&forno);
         Esquentar(p);
-        // Termina e sai da fila para comer
-        Desenfileirar(p);
+        // Termina de esquentar e vai comer
+        //Desenfileirar(p);
         pthread_mutex_unlock(&forno);
         // Chama o próximo antes de comer e trabalhar
         ChamarProximo();
-        Comer();
+        Comer(p);
         Trabalhar(p);
         p->vezes--;
     }
