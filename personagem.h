@@ -6,7 +6,7 @@ class Personagem {
     int id;
     int vezes;
 
-    Personagem(int pId);
+    Personagem(int pId, int pVezes);
     std::string Nome();
 };
 

@@ -1,8 +1,8 @@
 #include "personagem.h"
 
-Personagem::Personagem(int pId) {
+Personagem::Personagem(int pId, int pVezes) {
     id = pId;
-    vezes = 3;
+    vezes = pVezes;
 }
 
 std::string Personagem::Nome() {

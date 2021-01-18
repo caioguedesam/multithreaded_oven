@@ -219,26 +219,28 @@ void *ThreadRaj(void *arg) {
     pthread_exit(EXIT_SUCCESS);
 }
 
-int main() {
-
+int main(int argc, char **argv) {
+    // Inicialização de variáveis importantes
     srand(time(NULL));
     int numPersonagens = 6;
     std::vector<Personagem*> personagens;
+    raj = false;
+    rajLimit = 0;
+    int vezes = (argc > 1) ? atoi(argv[1]) : 1;
+    // Inicializando variáveis de condição e mutexes
     pthread_t threads[numPersonagens + 2];
     pthread_t rajThread;
     pthread_mutex_init(&forno, NULL);
     pthread_mutex_init(&fila, NULL);
     pthread_cond_init(&sinal, NULL);
-    raj = false;
-    rajLimit = 0;
 
     // Inicializando personagens
     for(int i = 0; i < numPersonagens; i++) {
-        Personagem *p = new Personagem(i + 1);
+        Personagem *p = new Personagem(i + 1, vezes);
         personagens.push_back(p);
     }
-    Personagem *stuart = new Personagem(-1);
-    Personagem *kripke = new Personagem(-2);
+    Personagem *stuart = new Personagem(-1, vezes);
+    Personagem *kripke = new Personagem(-2, vezes);
     personagens.push_back(stuart);
     personagens.push_back(kripke);
     
