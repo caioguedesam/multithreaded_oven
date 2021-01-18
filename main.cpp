@@ -33,8 +33,18 @@ int Prioridade(int p1, int p2) {
     else return max;
 }
 
+bool TemDeadlock() {
+    bool p1 = (std::find(filaForno.begin(), filaForno.end(), 1) != filaForno.end());
+    bool p2 = (std::find(filaForno.begin(), filaForno.end(), 2) != filaForno.end());
+    bool p3 = (std::find(filaForno.begin(), filaForno.end(), 3) != filaForno.end());
+    return p1 && p2 && p3;
+}
+
 int ProximoDaFila() {
-    // TODO: Verificação de Deadlock
+    if(TemDeadlock()) {
+        printf("Deadlock detectado\n");
+        return 0;
+    }
     // TODO: Casais
     if(filaForno.empty()) return 0;
     int first = filaForno[0];
